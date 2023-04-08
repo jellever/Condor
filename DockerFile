@@ -1,0 +1,6 @@
+FROM --platform=linux/amd64 tobix/pywine:latest
+
+RUN apt-get install -y --no-install-recommends osslsigncode python3 python3-pip
+RUN pip3 install tinyaes colorama Cython
+
+COPY . /root/Condor/

